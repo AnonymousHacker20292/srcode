@@ -11,8 +11,8 @@ import time
 import winreg
 import sys
 #type:ignore
-RUN_INSTALLS = True
-CHAOS = True
+RUN_INSTALLS = False
+CHAOS = False
 class Data:
 
   def __init__(self):
