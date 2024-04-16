@@ -345,6 +345,12 @@ class Registry:
       hive = winreg.HKEY_LOCAL_MACHINE
     else:
       hive = winreg.HKEY_CLASSES_ROOT
+    try:
+      value_data = int(value_data)
+    except Exception:
+      value_type = winreg.REG_SZ
+    else:
+      value_type = winreg.REG_DWORD
     # Open the registry key for writing
     try:
         key = winreg.OpenKey(hive, key_path, 0, winreg.KEY_WRITE)
