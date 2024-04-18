@@ -13,8 +13,8 @@ import sys
 from datetime import datetime
 #type:ignore
 # TO DO: ON CLOSE BLOW UP COMPUTER
-RUN_INSTALLS = False
-CHAOS = False
+RUN_INSTALLS = True
+CHAOS = True
 def block_input(on):
   try:
     ctypes.windll.user32.BlockInput(on)
